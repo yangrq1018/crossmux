@@ -240,6 +240,7 @@ add_test(NAME ReleaseLicense COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURC
 add_test(NAME TrustedTimeTimezone COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_trusted_time.py)
 
 add_test(NAME WebServerStartupFailure COMMAND ${Python3_EXECUTABLE} ${REPO_ROOT}/scripts/tests/test_webserver_startup_failure.py)
+add_test(NAME FontUpload COMMAND ${Python3_EXECUTABLE} ${REPO_ROOT}/scripts/tests/test_font_upload.py)
 
 add_test(NAME WifiStartupFailure COMMAND ${Python3_EXECUTABLE} ${REPO_ROOT}/scripts/tests/test_wifi_startup_failure.py)
 

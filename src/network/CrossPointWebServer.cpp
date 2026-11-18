@@ -3586,11 +3586,6 @@ void CrossPointWebServer::handleFontUploadData() {
       fontUpload.bufferPos = 0;
       fontUpload.buffer.reset();
 
-      if (!fontUpload.buffer) {
-        LOG_ERR("WEB", "Font upload unavailable: no buffer");
-        break;
-      }
-
       if (!FontInstaller::isValidFamilyName(family.c_str())) {
         LOG_ERR("WEB", "Invalid font family name: %s", family.c_str());
         break;
