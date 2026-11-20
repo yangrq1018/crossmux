@@ -77,6 +77,9 @@ class ActivityManager {
 
   // Lock to serialize rendering operations. Must only be used via RenderLock.
   SemaphoreHandle_t renderingMutex = nullptr;
+#if FREEINK_DEVICE_METALIO_EINK4
+  bool standbyRenderingPaused = false;  // Accessed under RenderLock.
+#endif
 
   // Cross-task render request flag. requestUpdate() may set it from any task;
   // loop() consumes and clears it with exchange(false).
@@ -133,7 +136,10 @@ class ActivityManager {
   void goToBrowser();
   void goToPlugins(bool showOpds);
   void goToReader(std::string path, bool allowFastInitialRefresh = false);
-  void goToSleep(bool fromTimeout = false);
+  void goToSleep(bool fromTimeout = false, bool screenReady = false);
+#if FREEINK_DEVICE_METALIO_EINK4
+  void pauseStandbyRendering(const RenderLock& lock, bool paused);
+#endif
   void goToBoot();
   bool goToPostOtaBoot(bool allowAutoPreload);
   void goToFullScreenMessage(std::string message, EpdFontFamily::Style style = EpdFontFamily::REGULAR);

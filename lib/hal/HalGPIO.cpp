@@ -309,6 +309,10 @@ bool HalGPIO::wasReleased(uint8_t buttonIndex) const { return inputMgr.wasReleas
 
 bool HalGPIO::wasAnyReleased() const { return inputMgr.wasAnyReleased(); }
 
+#if FREEINK_DEVICE_METALIO_EINK4
+bool HalGPIO::isPowerButtonPhysicallyPressed() const { return inputMgr.isPowerButtonPhysicallyPressed(); }
+#endif
+
 bool HalGPIO::rawInputActive() {
   if (inputMgr.isPowerButtonPhysicallyPressed()) return true;
 #if FREEINK_DEVICE_LILYGO

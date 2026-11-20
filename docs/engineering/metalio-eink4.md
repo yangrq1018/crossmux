@@ -43,8 +43,22 @@ CrossMux uses the SDK's UART initialization for the module's local audio mode
 and sends 16 kHz stereo I²S with the module supplying the clocks. The HAL
 generates the cue in a stack buffer and uses the SDK's temporary I²S DMA
 buffers. It enables the amplifier after I²S starts, drains playback with
-silence, then disables the amplifier and releases I²S and UART before the
-board power-off sequence. A failed write is logged and sleep continues.
+silence, then disables the amplifier and releases I²S and UART before standby
+or power-off. A failed write is logged and sleep continues.
+
+With **Short Power Button Press** set to **Sleep**, the first click shows
+the configured sleep screen and puts the ESP32-S3 into light sleep. The
+inactivity timer uses the same path. The active page, activity stack and
+mounted SD card stay in memory. The HAL arms the active-low GPIO3 power key
+and holds the SSD1677 reset pin high during sleep. The next click reinitializes
+the panel and redraws the same activity. An armed wake still counts if the
+button is released before the CPU resumes.
+
+A held power key in either mode or 30 minutes in standby runs the hardware
+power-off sequence. Standby-to-off keeps the existing sleep screen and avoids
+playing the cue twice. A failed light-sleep attempt restores the active page.
+The old default **Ignore** migrates to **Sleep** once. Other saved button
+actions remain selectable.
 
 Build `pio run -e metalio_eink4` and run affected device/display/power host
 regressions. Physical acceptance must repeat cold boot, SD reads, touch/bezel

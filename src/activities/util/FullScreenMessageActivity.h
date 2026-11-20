@@ -11,6 +11,7 @@ class FullScreenMessageActivity final : public Activity {
   std::string text;
   EpdFontFamily::Style style;
   HalDisplay::RefreshMode refreshMode;
+  void drawMessage() const;
 
  public:
   explicit FullScreenMessageActivity(GfxRenderer& renderer, MappedInputManager& mappedInput, std::string text,
@@ -21,4 +22,5 @@ class FullScreenMessageActivity final : public Activity {
         style(style),
         refreshMode(refreshMode) {}
   void onEnter() override;
+  void render(RenderLock&&) override;
 };

@@ -334,6 +334,41 @@ void HalPowerManager::startDeepSleep(HalGPIO& gpio, const bool wakeOnHeldButton)
 #endif
 }
 
+#if FREEINK_DEVICE_METALIO_EINK4
+HalPowerManager::LightSleepWakeReason HalPowerManager::lightSleepMetalioStandby(const uint32_t seconds) const {
+  const auto& board = BoardConfig::ACTIVE;
+  const auto powerPin = static_cast<gpio_num_t>(board.input.power);
+  const uint64_t powerMask = 1ULL << board.input.power;
+  if (gpio.isPowerButtonPhysicallyPressed()) return LightSleepWakeReason::PowerButton;
+  if (!freeink::PowerManager::armLightSleepWakeup(powerMask, !board.input.powerActiveHigh)) {
+    gpio_set_intr_type(powerPin, GPIO_INTR_DISABLE);
+    LOG_ERR("PWR", "Could not arm Metalio standby power key");
+    return LightSleepWakeReason::Failed;
+  }
+
+  // The stock firmware holds SSD1677 reset high while the CPU is in light sleep.
+  const auto resetPin = static_cast<gpio_num_t>(board.display.rst);
+  esp_err_t error = gpio_set_level(resetPin, HIGH);
+  if (error == ESP_OK) error = gpio_hold_en(resetPin);
+  const bool resetHeld = error == ESP_OK;
+  if (error == ESP_OK) error = esp_sleep_enable_timer_wakeup(static_cast<uint64_t>(seconds) * 1000000ULL);
+  if (error == ESP_OK) error = esp_light_sleep_start();
+  const bool powerPressed = gpio.isPowerButtonPhysicallyPressed();
+  const auto cause = esp_sleep_get_wakeup_cause();
+
+  if (resetHeld) gpio_hold_dis(resetPin);
+  freeink::PowerManager::clearLightSleepWakeup(powerMask);
+  gpio_set_intr_type(powerPin, GPIO_INTR_DISABLE);
+  esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_TIMER);
+
+  // A press that arrives while arming the level trigger can reject sleep.
+  if ((error == ESP_OK && cause == ESP_SLEEP_WAKEUP_GPIO) || powerPressed) return LightSleepWakeReason::PowerButton;
+  if (error == ESP_OK && cause == ESP_SLEEP_WAKEUP_TIMER) return LightSleepWakeReason::Timer;
+  LOG_ERR("PWR", "Metalio standby sleep failed: %d (wake cause %d)", static_cast<int>(error), static_cast<int>(cause));
+  return LightSleepWakeReason::Failed;
+}
+#endif
+
 bool HalPowerManager::canStandbyLightSleep(const HalGPIO& gpio) const {
 #if FREEINK_DEVICE_READPICO
   // The power key is PMU-owned and has no GPIO, so the generic

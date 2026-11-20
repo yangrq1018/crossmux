@@ -113,7 +113,11 @@ void ActivityManager::renderTaskLoop() {
     // failures; re-arm after quiet input only if measured cache hit rate needs it.
     waitTicks = portMAX_DELAY;
     RenderLock lock;
-    if (currentActivity && pendingAction.load() == PendingAction::None) {
+    if (currentActivity && pendingAction.load() == PendingAction::None
+#if FREEINK_DEVICE_METALIO_EINK4
+        && !standbyRenderingPaused
+#endif
+    ) {
       HalPowerManager::Lock powerLock;
       if (foreground) {
         // Some renderers release the lock, so read activity-owned metadata
@@ -601,12 +605,19 @@ void ActivityManager::goToReader(std::string path, const bool allowFastInitialRe
   if (activity) replaceActivity(std::move(activity));
 }
 
-void ActivityManager::goToSleep(bool fromTimeout) {
-  if (replaceActivityWith<SleepActivity>(fromTimeout)) {
+void ActivityManager::goToSleep(const bool fromTimeout, const bool screenReady) {
+  if (replaceActivityWith<SleepActivity>(fromTimeout, screenReady)) {
     pendingAction.store(PendingAction::ReplaceForSleep);
     loop();  // The caller sleeps immediately after this returns, so render now.
   }
 }
+
+#if FREEINK_DEVICE_METALIO_EINK4
+void ActivityManager::pauseStandbyRendering(const RenderLock& lock, const bool paused) {
+  assert(lock.ownsLock());
+  standbyRenderingPaused = paused;
+}
+#endif
 
 void ActivityManager::goToBoot() { replaceActivityWith<BootActivity>(); }
 

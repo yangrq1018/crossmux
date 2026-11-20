@@ -65,6 +65,10 @@ class HalPowerManager {
   // Enter one light-sleep cycle. GPIO and timer wake sources are removed before returning.
   LightSleepWakeReason lightSleepFor(uint32_t seconds) const;
 
+#if FREEINK_DEVICE_METALIO_EINK4
+  LightSleepWakeReason lightSleepMetalioStandby(uint32_t seconds) const;
+#endif
+
   // Get battery percentage (range 0-100)
   uint16_t getBatteryPercentage() const;
 

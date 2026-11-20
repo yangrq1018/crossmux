@@ -8,9 +8,12 @@ class HalFile;
 
 class SleepActivity final : public Activity {
  public:
-  explicit SleepActivity(GfxRenderer& renderer, MappedInputManager& mappedInput, bool fromTimeout = false)
-      : Activity("Sleep", renderer, mappedInput), fromTimeout(fromTimeout) {}
+  explicit SleepActivity(GfxRenderer& renderer, MappedInputManager& mappedInput, bool fromTimeout = false,
+                         bool screenReady = false)
+      : Activity("Sleep", renderer, mappedInput), fromTimeout(fromTimeout), screenReady(screenReady) {}
   void onEnter() override;
+  // Caller serializes rendering when drawing the screen over a live activity.
+  void drawScreen(bool fromReader) const;
 
  private:
   void renderDefaultSleepScreen() const;
@@ -26,6 +29,7 @@ class SleepActivity final : public Activity {
   void renderBlankSleepScreen() const;
 
   bool fromTimeout = false;
+  bool screenReady = false;
   // Cover + Transparent: the cover under the overlay, and the same cover while its gray planes are redrawn.
   mutable const Bitmap* overlayCover = nullptr;
   mutable const Bitmap* overlayGrayCover = nullptr;

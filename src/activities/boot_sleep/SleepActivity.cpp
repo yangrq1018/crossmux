@@ -586,6 +586,10 @@ void releaseSdFontCachesForDecode(const GfxRenderer& renderer) {
 
 void SleepActivity::onEnter() {
   Activity::onEnter();
+  if (!screenReady) drawScreen(APP_STATE.lastSleepFromReader);
+}
+
+void SleepActivity::drawScreen(const bool fromReader) const {
   if (!sleepCover::recover()) {
     display.setInverted(false);
     return renderDefaultSleepScreen();
@@ -622,11 +626,11 @@ void SleepActivity::onEnter() {
     // output-level inversion first so the retained content keeps its visible
     // polarity after the display driver returns to normal.
     if (frameWasInverted) renderer.invertScreen();
-    if (APP_STATE.lastSleepFromReader) {
+    if (fromReader) {
       ReaderUtils::applyOrientation(renderer, SETTINGS.orientation);
     }
     drawSleepPopupPreservingFrame(renderer);
-    if (APP_STATE.lastSleepFromReader) {
+    if (fromReader) {
       renderer.setOrientation(GfxRenderer::Orientation::Portrait);
     }
     releaseSdFontCachesForDecode(renderer);
@@ -637,7 +641,7 @@ void SleepActivity::onEnter() {
   }
 
   // Show popup with reader orientation only when going to sleep from reader
-  if (APP_STATE.lastSleepFromReader) {
+  if (fromReader) {
     ReaderUtils::applyOrientation(renderer, SETTINGS.orientation);
     GUI.drawPopup(renderer, tr(STR_ENTERING_SLEEP));
     renderer.setOrientation(GfxRenderer::Orientation::Portrait);

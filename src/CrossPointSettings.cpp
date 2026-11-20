@@ -298,6 +298,9 @@ void CrossPointSettings::toJson(JsonDocument& doc) const {
   // display-index mapping and is skipped by the generic persistence loop.
   doc["longPressMenuFunction"] = longPressMenuFunction;
   doc["shortPwrBtn"] = shortPwrBtn;
+#if FREEINK_DEVICE_METALIO_EINK4
+  doc["metalioStandbyPowerKey"] = true;
+#endif
 
   // Language -- managed by LanguageSelectActivity, not in SettingsList.
   // Stored as ISO code string ("EN", "DE", ...) for stability across enum reorders.
@@ -566,6 +569,13 @@ bool CrossPointSettings::fromJson(JsonVariantConst doc) {
   longPressMenuFunction = clamp(doc["longPressMenuFunction"] | (uint8_t)LP_MENU_DISABLED,
                                 (uint8_t)LONG_PRESS_MENU_FUNCTION_COUNT, (uint8_t)LP_MENU_DISABLED);
   shortPwrBtn = clamp(doc["shortPwrBtn"] | (uint8_t)IGNORE, (uint8_t)SHORT_PWRBTN_COUNT, (uint8_t)IGNORE);
+#if FREEINK_DEVICE_METALIO_EINK4
+  // Upgrade the old default once. Keep alternate actions and future explicit Ignore choices.
+  if (!(doc["metalioStandbyPowerKey"] | false)) {
+    if (shortPwrBtn == IGNORE) shortPwrBtn = SLEEP;
+    needsResave = true;
+  }
+#endif
   if (BoardConfig::hasHomeKey() && doc["homeButtonLongPressAction"].isNull() &&
       !doc["longPressMenuFunction"].isNull()) {
     static constexpr HomeButtonAction LEGACY[] = {HomeButtonAction::Sync,       HomeButtonAction::Ignore,
@@ -822,6 +832,9 @@ bool CrossPointSettings::loadFromBinaryFile() {
   sleepScreen = validated(0, sleepScreen, SLEEP_SCREEN_MODE_COUNT);
   extraParagraphSpacing = value(1, extraParagraphSpacing);
   shortPwrBtn = validated(2, shortPwrBtn, SHORT_PWRBTN_COUNT);
+#if FREEINK_DEVICE_METALIO_EINK4
+  if (shortPwrBtn == IGNORE) shortPwrBtn = SLEEP;
+#endif
   statusBar = validated(3, statusBar, STATUS_BAR_MODE_COUNT);
   orientation = validated(4, orientation, ORIENTATION_COUNT);
   frontButtonLayout = validated(5, frontButtonLayout, FRONT_BUTTON_LAYOUT_COUNT);

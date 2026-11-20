@@ -456,7 +456,7 @@ class CrossPointSettings : public PersistableStore<CrossPointSettings> {
   uint8_t readingGuideLineStyle = static_cast<uint8_t>(readingGuideLine::Style::ShortDash);
   int8_t readingGuideLineOffset = READING_GUIDE_LINE_OFFSET_DEFAULT;
   // Short power button click behaviour
-  uint8_t shortPwrBtn = IGNORE;
+  uint8_t shortPwrBtn = FREEINK_DEVICE_METALIO_EINK4 ? SLEEP : IGNORE;
   // X4 Pro: double-click power toggles the frontlight. Disabling frees the
   // power button for shortPwrBtn actions without the double-click wait.
   uint8_t doubleClickPwrLight = 1;
@@ -681,9 +681,7 @@ class CrossPointSettings : public PersistableStore<CrossPointSettings> {
   SdFontIdResolver sdFontIdResolver = nullptr;
   void* sdFontResolverCtx = nullptr;
 
-  uint16_t getPowerButtonDuration() const {
-    return (shortPwrBtn == CrossPointSettings::SHORT_PWRBTN::SLEEP) ? 10 : 400;
-  }
+  uint16_t getPowerButtonDuration() const { return (!FREEINK_DEVICE_METALIO_EINK4 && shortPwrBtn == SLEEP) ? 10 : 400; }
   int getReaderFontId() const;
 
   // Drop the SD font selection and fall back to the built-in family. Legacy

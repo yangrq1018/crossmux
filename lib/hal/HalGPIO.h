@@ -100,6 +100,9 @@ class HalGPIO {
   bool wasAnyReleased() const;
   unsigned long getHeldTime() const;
   unsigned long getPowerButtonHeldTime() const;
+#if FREEINK_DEVICE_METALIO_EINK4
+  bool isPowerButtonPhysicallyPressed() const;
+#endif
   // True when any button contact is closed right now, read straight from the
   // hardware (ADC ladder off its idle rail, the power GPIO asserted, or the T5S3
   // expander key, one I2C read), without going through the debounced state.

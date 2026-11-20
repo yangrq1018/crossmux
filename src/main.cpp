@@ -51,6 +51,9 @@
 #include "WifiCredentialStore.h"
 #include "activities/Activity.h"
 #include "activities/ActivityManager.h"
+#if FREEINK_DEVICE_METALIO_EINK4
+#include "activities/boot_sleep/SleepActivity.h"
+#endif
 #ifdef ENABLE_CHINESE_VERSION
 #include "activities/settings/FontDownloadActivity.h"
 #include "activities/settings/TextSettingsActivity.h"
@@ -608,7 +611,7 @@ static bool holdSleepWhileUsbPowered() {
 #endif
 
 // Enter deep sleep mode
-void enterDeepSleep(bool fromTimeout = false) {
+void enterDeepSleep(bool fromTimeout = false, bool lockScreenReady = false) {
   HalPowerManager::Lock powerLock;  // Ensure we are at normal CPU frequency for sleep preparation
   APP_STATE.lastSleepFromReader = activityManager.isReaderActivity();
 
@@ -618,9 +621,11 @@ void enterDeepSleep(bool fromTimeout = false) {
 
   // Stop Bluetooth before plugin delivery can start WiFi; a timeout defers delivery.
   deepSleepInProgress = true;
-  const bool bluetoothStopped = bleturner::beforeSleep(2000);
-  if (!bluetoothStopped) LOG_ERR("SLP", "Bluetooth did not stop; deferring sleep-event delivery");
-  deliverSleepPluginEvents(bluetoothStopped);
+  if (!lockScreenReady) {
+    const bool bluetoothStopped = bleturner::beforeSleep(2000);
+    if (!bluetoothStopped) LOG_ERR("SLP", "Bluetooth did not stop; deferring sleep-event delivery");
+    deliverSleepPluginEvents(bluetoothStopped);
+  }
 
   const bool isQuickResumeSleep =
       SETTINGS.sleepScreen == CrossPointSettings::SLEEP_SCREEN_MODE::QUICK_RESUME ||
@@ -632,7 +637,7 @@ void enterDeepSleep(bool fromTimeout = false) {
 
   APP_STATE.saveToFile();
 
-  activityManager.goToSleep(fromTimeout);
+  activityManager.goToSleep(fromTimeout, lockScreenReady);
 
   if (!READING_STATS.saveToFile()) {
     LOG_ERR("RST", "Failed to save reading stats before deep sleep");
@@ -673,14 +678,74 @@ void enterDeepSleep(bool fromTimeout = false) {
   SoundFeedback::shutdown();
 #endif
 #if FREEINK_DEVICE_METALIO_EINK4
-  if (SETTINGS.sleepChime) HalAudioOutput::playSleepChime();
+  if (!lockScreenReady && SETTINGS.sleepChime) HalAudioOutput::playSleepChime();
 #endif
-  display.deepSleep();
+  if (!lockScreenReady) display.deepSleep();
   Storage.prepareForDeepSleep();
   LOG_DBG("MAIN", "Entering deep sleep");
 
   powerManager.startDeepSleep(gpio, wakeOnHeldButton);
 }
+
+#if FREEINK_DEVICE_METALIO_EINK4
+static bool metalioWakePressRequestsPowerOff() {
+  const unsigned long pressedAt = millis();
+  while (gpio.isPowerButtonPhysicallyPressed()) {
+    if (millis() - pressedAt >= SETTINGS.getPowerButtonDuration()) return true;
+    delay(10);
+  }
+  return false;
+}
+
+static void enterMetalioStandby(const bool fromTimeout = false) {
+  constexpr uint32_t STANDBY_TIMEOUT_SECONDS = 30 * 60;
+  using WakeReason = HalPowerManager::LightSleepWakeReason;
+  if (!bleturner::beforeSleep(2000)) {
+    LOG_ERR("SLP", "Bluetooth did not stop; Metalio standby cancelled");
+    return;
+  }
+  deliverSleepPluginEvents(true);
+  if (WiFi.getMode() != WIFI_MODE_NULL && !WiFi.mode(WIFI_OFF)) {
+    LOG_ERR("SLP", "Wi-Fi did not stop; Metalio standby cancelled");
+    activityManager.requestUpdate();
+    return;
+  }
+  HalHaptics::feedback(false, false, 0);
+  activityManager.cancelIdleRender();
+
+  bool powerOff = false;
+  {
+    // Keep the live activity and its navigation stack. Hold off the render task
+    // until the standby frame has either been left for shutdown or replaced on wake.
+    RenderLock lock;
+    HalPowerManager::Lock powerLock;
+    activityManager.pauseStandbyRendering(lock, true);
+    const auto orientation = renderer.getOrientation();
+    SleepActivity(renderer, mappedInputManager, fromTimeout).drawScreen(activityManager.isReaderActivity());
+    if (SETTINGS.sleepChime) HalAudioOutput::playSleepChime();
+    display.deepSleep();
+
+    const auto wake = powerManager.lightSleepMetalioStandby(STANDBY_TIMEOUT_SECONDS);
+    powerOff = wake == WakeReason::Timer || (wake == WakeReason::PowerButton && metalioWakePressRequestsPowerOff());
+    READING_STATS.resumeSession();
+    if (!powerOff) {
+      display.begin(true);
+      renderer.setOrientation(orientation);
+      activityManager.pauseStandbyRendering(lock, false);
+    }
+  }
+  if (powerOff) {
+    enterDeepSleep(fromTimeout, true);
+    return;
+  }
+  // The wake keypress belongs to standby. InputManager sees the next press as
+  // a new gesture. Sample once so any touch carried over from standby is dropped.
+  gpio.update();
+  gpio.suppressTouchContact();
+  mappedInputManager.resetHomeButtonInput();
+  activityManager.requestUpdateAndWait();
+}
+#endif
 
 bool setupDisplayAndFonts(bool seamless = false, bool logSdFontLoadHeap = false) {
 #if FREEINK_DEVICE_X4PRO
@@ -1441,8 +1506,12 @@ void loop() {
   const unsigned long sleepTimeoutMs = SETTINGS.getSleepTimeoutMs();
   if (sleepTimeoutMs > 0 && !activityManager.preventAutoSleep() && millis() - lastActivityTime >= sleepTimeoutMs) {
     LOG_DBG("SLP", "Auto-sleep triggered after %lu ms of inactivity", sleepTimeoutMs);
+#if FREEINK_DEVICE_METALIO_EINK4
+    enterMetalioStandby(true);
+    lastActivityTime = millis();
+#else
     enterDeepSleep(true);
-    // This should never be hit as `enterDeepSleep` calls esp_deep_sleep_start
+#endif
     return;
   }
 
@@ -1471,7 +1540,20 @@ void loop() {
     return;
   }
 
-#if FREEINK_DEVICE_PAPERMONO
+#if FREEINK_DEVICE_METALIO_EINK4
+  if (powerReleasedSinceWake && millis() >= allowSleepAt &&
+      mappedInputManager.wasReleased(MappedInputManager::Button::Power)) {
+    if (gpio.getPowerButtonHeldTime() > SETTINGS.getPowerButtonDuration()) {
+      enterDeepSleep();
+      return;
+    }
+    if (SETTINGS.shortPwrBtn == CrossPointSettings::SHORT_PWRBTN::SLEEP && !activityManager.preventAutoSleep()) {
+      enterMetalioStandby();
+      lastActivityTime = millis();
+      return;
+    }
+  }
+#elif FREEINK_DEVICE_PAPERMONO
   // Paper Mono reports the PMIC power button as a one-tick click, so the held
   // path above cannot fire. With the default Ignore action, retain the normal
   // power-button meaning and shut down; explicit alternate bindings still win.
