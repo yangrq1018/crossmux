@@ -393,6 +393,9 @@ class CrossPointSettings : public PersistableStore<CrossPointSettings> {
 
   // Sleep screen settings
   uint8_t sleepScreen = LIGHT;
+#if FREEINK_DEVICE_METALIO_EINK4
+  uint8_t sleepChime = 0;
+#endif
   // Night mode: inverted output polarity, applied to every activity per
   // render by ActivityManager. The sleep screen opts out itself.
   uint8_t screenInverted = 0;

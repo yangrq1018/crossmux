@@ -254,6 +254,10 @@ void forEachBaseSetting(SettingVisitor visit, void* context) {
           StrId::STR_TIME_TO_SLEEP, &CrossPointSettings::sleepTimeoutMinutes,
           {CrossPointSettings::MIN_SLEEP_TIMEOUT_MINUTES, CrossPointSettings::MAX_SLEEP_TIMEOUT_MINUTES, 1},
           "sleepTimeoutMinutes", StrId::STR_CAT_SYSTEM));
+#if FREEINK_DEVICE_METALIO_EINK4
+  emit(SettingInfo::Toggle(StrId::STR_SLEEP_CHIME, &CrossPointSettings::sleepChime, "sleepChime",
+                           StrId::STR_CAT_SYSTEM));
+#endif
   emit(SettingInfo::Toggle(StrId::STR_SHOW_HIDDEN_FILES, &CrossPointSettings::showHiddenFiles, "showHiddenFiles",
                            StrId::STR_CAT_SYSTEM));
 #if CROSSPOINT_CAP_SOUND_FEEDBACK

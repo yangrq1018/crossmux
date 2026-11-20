@@ -12,5 +12,6 @@ bool playPcm(ReadCallback read, SeekCallback seek, uint32_t sampleRate, uint8_t 
 bool restart(uint8_t volume);
 void setVolume(uint8_t volume);
 void shutdown();
+void playSleepChime();
 
 }  // namespace HalAudioOutput

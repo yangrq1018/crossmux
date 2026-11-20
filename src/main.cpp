@@ -81,6 +81,9 @@ SET_LOOP_TASK_STACK_SIZE(24 * 1024)
 #if CROSSPOINT_CAP_SOUND_FEEDBACK
 #include <SoundFeedback.h>
 #endif
+#if FREEINK_DEVICE_METALIO_EINK4
+#include <HalAudioOutput.h>
+#endif
 
 GfxRenderer renderer(display);
 MappedInputManager mappedInputManager(gpio, renderer);
@@ -668,6 +671,9 @@ void enterDeepSleep(bool fromTimeout = false) {
   Frontlight.setOn(false);
 #if CROSSPOINT_CAP_SOUND_FEEDBACK
   SoundFeedback::shutdown();
+#endif
+#if FREEINK_DEVICE_METALIO_EINK4
+  if (SETTINGS.sleepChime) HalAudioOutput::playSleepChime();
 #endif
   display.deepSleep();
   Storage.prepareForDeepSleep();

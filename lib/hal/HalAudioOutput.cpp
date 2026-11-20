@@ -78,3 +78,78 @@ void shutdown() {
 }  // namespace HalAudioOutput
 
 #endif
+
+#if FREEINK_DEVICE_METALIO_EINK4
+
+#include <Logging.h>
+#include <MetalioAudio.h>
+
+#include <algorithm>
+#include <array>
+
+namespace HalAudioOutput {
+namespace {
+
+namespace metalio = freeink::metalio;
+
+constexpr i2s_chan_config_t DMA_CONFIG = I2S_CHANNEL_DEFAULT_CONFIG(I2S_NUM_0, I2S_ROLE_SLAVE);
+constexpr size_t FRAMES_PER_BUFFER = DMA_CONFIG.dma_frame_num;
+constexpr size_t FRAMES_PER_NOTE = 4 * FRAMES_PER_BUFFER;
+constexpr size_t FADE_FRAMES = metalio::AUDIO_RATE / 100;
+constexpr uint8_t CHIME_VOLUME = 38;
+constexpr uint32_t WRITE_TIMEOUT_MS = 150;
+using StereoBuffer = std::array<int32_t, FRAMES_PER_BUFFER * 2>;
+
+bool writeBuffer(const StereoBuffer& buffer) {
+  size_t written = 0;
+  const size_t bytes = sizeof(buffer);
+  return i2s_channel_write(metalio::audioBus().tx, buffer.data(), bytes, &written, WRITE_TIMEOUT_MS) == ESP_OK &&
+         written == bytes;
+}
+
+bool playChime() {
+  // Queue silence first to check the module's I2S clocks before enabling the amplifier.
+  StereoBuffer buffer{};
+  if (!writeBuffer(buffer) || !metalio::setAmplifier(true)) return false;
+
+  // Two descending notes at 800 and 640 Hz. Fade their edges to suppress clicks.
+  for (const int period : {20, 25}) {
+    for (size_t offset = 0; offset < FRAMES_PER_NOTE; offset += FRAMES_PER_BUFFER) {
+      for (size_t i = 0; i < FRAMES_PER_BUFFER; ++i) {
+        const size_t frame = offset + i;
+        const int phase = static_cast<int>(frame % period);
+        const int triangle = 4 * std::min(phase, period - phase) - period;
+        const int fade = static_cast<int>(std::min({frame, FRAMES_PER_NOTE - 1 - frame, FADE_FRAMES}));
+        const auto sample = static_cast<int16_t>(triangle * 24000 * fade / (period * static_cast<int>(FADE_FRAMES)));
+        buffer[2 * i] = buffer[2 * i + 1] = metalio::outputSample(sample, CHIME_VOLUME);
+      }
+      if (!writeBuffer(buffer)) return false;
+    }
+  }
+
+  // Writing a full ring of silence guarantees the last tone has left the DMA ring.
+  buffer.fill(0);
+  for (size_t i = 0; i < DMA_CONFIG.dma_desc_num; ++i) {
+    if (!writeBuffer(buffer)) return false;
+  }
+  return true;
+}
+
+}  // namespace
+
+void playSleepChime() {
+  static const uint8_t owner = 0;
+  if (!metalio::acquireAudio(&owner, false)) {
+    LOG_ERR("SND", "Failed to initialize Metalio speaker");
+    return;
+  }
+  if (!metalio::startAudio(&owner, false) || !playChime()) {
+    LOG_ERR("SND", "Failed to play Metalio sleep chime");
+  }
+  if (!metalio::setAmplifier(false)) LOG_ERR("SND", "Failed to mute Metalio speaker");
+  metalio::releaseAudio(&owner, false);
+}
+
+}  // namespace HalAudioOutput
+
+#endif

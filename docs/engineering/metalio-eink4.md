@@ -37,6 +37,15 @@ turns the amplifier off, retains main/screen rails, and pulses the power key at
 sequence returns, the HAL uses GPIO3 deep-sleep wake fallback. This replaces the
 old indefinitely retrying shutdown path documented in the historical record.
 
+The **Sleep Chime** switch in System settings defaults to off. When enabled,
+the built-in speaker plays a short two-note cue before manual or timed sleep.
+CrossMux uses the SDK's UART initialization for the module's local audio mode
+and sends 16 kHz stereo I²S with the module supplying the clocks. The HAL
+generates the cue in a stack buffer and uses the SDK's temporary I²S DMA
+buffers. It enables the amplifier after I²S starts, drains playback with
+silence, then disables the amplifier and releases I²S and UART before the
+board power-off sequence. A failed write is logged and sleep continues.
+
 Build `pio run -e metalio_eink4` and run affected device/display/power host
 regressions. Physical acceptance must repeat cold boot, SD reads, touch/bezel
 keys in four orientations, Full/Half/Fast/gray cleanup, charging status,
